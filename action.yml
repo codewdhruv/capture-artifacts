@@ -1,0 +1,155 @@
+name: 'Capture Artifact Information'
+description: 'Captures and stores artifact information including name, location, and tag'
+author: '@codewdhruv'
+
+inputs:
+  artifact-name:
+    description: 'Name of the artifact'
+    required: true
+  artifact-location:
+    description: 'Location/path of the artifact'
+    required: true
+  artifact-tag:
+    description: 'Tag or version of the artifact'
+    required: false
+    default: 'latest'
+  output-format:
+    description: 'Output format (json, yaml, env)'
+    required: false
+    default: 'json'
+  output-file:
+    description: 'Output file name'
+    required: false
+    default: 'artifact-info'
+
+outputs:
+  artifact-info:
+    description: 'Artifact information in JSON format'
+    value: ${{ steps.capture.outputs.artifact-info }}
+  output-file-path:
+    description: 'Path to the generated output file'
+    value: ${{ steps.capture.outputs.output-file-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Capture Artifact Information
+      id: capture
+      shell: bash
+      run: |
+        # Set variables
+        ARTIFACT_NAME="${{ inputs.artifact-name }}"
+        ARTIFACT_LOCATION="${{ inputs.artifact-location }}"
+        ARTIFACT_TAG="${{ inputs.artifact-tag }}"
+        OUTPUT_FORMAT="${{ inputs.output-format }}"
+        OUTPUT_FILE="${{ inputs.output-file }}"
+        
+        # Get current timestamp
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        
+        # Get repository information
+        REPO_NAME="${{ github.repository }}"
+        REPO_URL="https://github.com/${{ github.repository }}"
+        COMMIT_SHA="${{ github.sha }}"
+        COMMIT_SHORT_SHA="${COMMIT_SHA:0:7}"
+        REF="${{ github.ref }}"
+        WORKFLOW_NAME="${{ github.workflow }}"
+        RUN_ID="${{ github.run_id }}"
+        RUN_NUMBER="${{ github.run_number }}"
+        
+        # Check if artifact location exists (if it's a file path)
+        ARTIFACT_EXISTS="false"
+        ARTIFACT_SIZE=""
+        if [[ -f "$ARTIFACT_LOCATION" || -d "$ARTIFACT_LOCATION" ]]; then
+          ARTIFACT_EXISTS="true"
+          if [[ -f "$ARTIFACT_LOCATION" ]]; then
+            ARTIFACT_SIZE=$(stat -c%s "$ARTIFACT_LOCATION" 2>/dev/null || stat -f%z "$ARTIFACT_LOCATION" 2>/dev/null || echo "unknown")
+          fi
+        fi
+        
+        # Create JSON object
+        JSON_OUTPUT=$(cat <<EOF
+        {
+          "artifact": {
+            "name": "$ARTIFACT_NAME",
+            "location": "$ARTIFACT_LOCATION",
+            "tag": "$ARTIFACT_TAG",
+            "exists": $ARTIFACT_EXISTS,
+            "size": "$ARTIFACT_SIZE"
+          },
+          "build": {
+            "timestamp": "$TIMESTAMP",
+            "repository": "$REPO_NAME",
+            "repository_url": "$REPO_URL",
+            "commit_sha": "$COMMIT_SHA",
+            "commit_short_sha": "$COMMIT_SHORT_SHA",
+            "ref": "$REF",
+            "workflow_name": "$WORKFLOW_NAME",
+            "run_id": "$RUN_ID",
+            "run_number": "$RUN_NUMBER"
+          }
+        }
+        EOF
+        )
+        
+        # Set output for GitHub Actions
+        {
+          echo "artifact-info<<EOF"
+          echo "$JSON_OUTPUT"
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
+        
+        # Generate output file based on format
+        case "$OUTPUT_FORMAT" in
+          json)
+            echo "$JSON_OUTPUT" | jq '.' > "${OUTPUT_FILE}.json"
+            OUTPUT_FILE_PATH="${OUTPUT_FILE}.json"
+            ;;
+          yaml)
+            echo "$JSON_OUTPUT" | jq -r '. as $root | 
+              "artifact:",
+              "  name: " + $root.artifact.name,
+              "  location: " + $root.artifact.location,
+              "  tag: " + $root.artifact.tag,
+              "  exists: " + ($root.artifact.exists | tostring),
+              "  size: " + $root.artifact.size,
+              "build:",
+              "  timestamp: " + $root.build.timestamp,
+              "  repository: " + $root.build.repository,
+              "  repository_url: " + $root.build.repository_url,
+              "  commit_sha: " + $root.build.commit_sha,
+              "  commit_short_sha: " + $root.build.commit_short_sha,
+              "  ref: " + $root.build.ref,
+              "  workflow_name: " + $root.build.workflow_name,
+              "  run_id: " + ($root.build.run_id | tostring),
+              "  run_number: " + ($root.build.run_number | tostring)' > "${OUTPUT_FILE}.yaml"
+            OUTPUT_FILE_PATH="${OUTPUT_FILE}.yaml"
+            ;;
+          env)
+            {
+              echo "ARTIFACT_NAME=$ARTIFACT_NAME"
+              echo "ARTIFACT_LOCATION=$ARTIFACT_LOCATION"
+              echo "ARTIFACT_TAG=$ARTIFACT_TAG"
+              echo "ARTIFACT_EXISTS=$ARTIFACT_EXISTS"
+              echo "ARTIFACT_SIZE=$ARTIFACT_SIZE"
+              echo "BUILD_TIMESTAMP=$TIMESTAMP"
+              echo "BUILD_REPOSITORY=$REPO_NAME"
+              echo "BUILD_REPOSITORY_URL=$REPO_URL"
+              echo "BUILD_COMMIT_SHA=$COMMIT_SHA"
+              echo "BUILD_COMMIT_SHORT_SHA=$COMMIT_SHORT_SHA"
+              echo "BUILD_REF=$REF"
+              echo "BUILD_WORKFLOW_NAME=$WORKFLOW_NAME"
+              echo "BUILD_RUN_ID=$RUN_ID"
+              echo "BUILD_RUN_NUMBER=$RUN_NUMBER"
+            } > "${OUTPUT_FILE}.env"
+            OUTPUT_FILE_PATH="${OUTPUT_FILE}.env"
+            ;;
+        esac
+        
+        echo "output-file-path=$OUTPUT_FILE_PATH" >> $GITHUB_OUTPUT
+        
+        echo "✅ Artifact information captured successfully!"
+        echo "📦 Artifact: $ARTIFACT_NAME"
+        echo "📍 Location: $ARTIFACT_LOCATION" 
+        echo "🏷️ Tag: $ARTIFACT_TAG"
+        echo "📄 Output file: $OUTPUT_FILE_PATH"
