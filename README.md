@@ -1,160 +1,96 @@
-# Capture Artifact Information
+# 📦 Capture Artifact Information Action
 
-A GitHub Action that captures comprehensive information about build artifacts, including metadata about the build environment, repository state, and artifact details.
+[![GitHub release](https://img.shields.io/github/release/codewdhruv/capture-artifacts.svg)](https://github.com/codewdhruv/capture-artifacts/releases)
+[![GitHub marketplace](https://img.shields.io/badge/marketplace-capture--artifact--info-blue?logo=github)](https://github.com/marketplace/actions/capture-artifact-information)
+
+A GitHub Action that captures comprehensive information about build artifacts, including metadata about the build environment, repository state, and artifact details. Perfect for CI/CD workflows that need to track and document their build outputs.
 
 ## Features
 
-- ✅ Captures artifact name, location, and tag
-- 📊 Includes build metadata (commit SHA, timestamp, workflow info)
-- 📁 Supports multiple output formats (JSON, YAML, ENV)
-- 🔍 Validates artifact existence and captures file size
-- 🔄 Reusable across any workflow
-- 📤 Provides outputs for use in subsequent steps
+- **Comprehensive metadata**: Captures artifact name, location, tag, size, and existence
+- **Build context**: Includes repository info, commit details, and workflow metadata
+- **Multiple formats**: Supports JSON, YAML, and environment variable outputs
+- **Easy integration**: Works seamlessly with existing GitHub workflows
+- **Documentation**: Generates structured metadata for compliance and auditing
 
-## Usage
-
-### Basic Usage
+## Quick start
 
 ```yaml
 - name: Capture artifact information
   uses: codewdhruv/capture-artifacts@v1
   with:
-    artifact-name: 'my-app'
+    artifact-name: 'my-application'
     artifact-location: './dist/app.tar.gz'
     artifact-tag: 'v1.2.3'
 ```
 
-### Advanced Usage
+## Usage examples
+
+### Basic usage
 
 ```yaml
-- name: Capture artifact information
-  id: artifact-capture
-  uses: codewdhruv/capture-artifacts@v1
-  with:
-    artifact-name: 'my-application'
-    artifact-location: './build/output.zip'
-    artifact-tag: 'v${{ github.run_number }}'
-    output-format: 'json'
-    output-file: 'artifact-metadata'
+name: Build and Track Artifacts
 
-- name: Use captured information
-  run: |
-    echo "Artifact: ${{ fromJson(steps.artifact-capture.outputs.artifact-info).artifact.name }}"
-    echo "Built at: ${{ fromJson(steps.artifact-capture.outputs.artifact-info).build.timestamp }}"
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Your build steps here
+      - name: Build application
+        run: npm run build && tar -czf dist.tar.gz dist/
+      
+      # Capture artifact metadata
+      - name: Capture artifact info
+        id: artifact
+        uses: codewdhruv/capture-artifacts@v1
+        with:
+          artifact-name: 'web-app'
+          artifact-location: './dist.tar.gz'
+          artifact-tag: 'v${{ github.run_number }}'
+          output-format: 'json'
+      
+      # Upload with metadata
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            dist.tar.gz
+            ${{ steps.artifact.outputs.output-file-path }}
 ```
 
-## Inputs
-
-| Name | Description | Required | Default |
-|------|-------------|----------|---------|
-| `artifact-name` | Name of the artifact | ✅ Yes | - |
-| `artifact-location` | Location/path of the artifact | ✅ Yes | - |
-| `artifact-tag` | Tag or version of the artifact | ❌ No | `latest` |
-| `output-format` | Output format (`json`, `yaml`, `env`) | ❌ No | `json` |
-| `output-file` | Output file name (without extension) | ❌ No | `artifact-info` |
-
-## Outputs
-
-| Name | Description |
-|------|-------------|
-| `artifact-info` | Complete artifact information in JSON format |
-| `output-file-path` | Path to the generated output file |
-
-## Output Structure
-
-### JSON Format
-
-```json
-{
-  "artifact": {
-    "name": "my-app",
-    "location": "./dist/app.tar.gz",
-    "tag": "v1.2.3",
-    "exists": true,
-    "size": "1048576"
-  },
-  "build": {
-    "timestamp": "2024-01-15T10:30:45Z",
-    "repository": "owner/repo-name",
-    "repository_url": "https://github.com/owner/repo-name",
-    "commit_sha": "abc123def456...",
-    "commit_short_sha": "abc123d",
-    "ref": "refs/heads/main",
-    "workflow_name": "Build and Deploy",
-    "run_id": "123456789",
-    "run_number": "42"
-  }
-}
-```
-
-### YAML Format
-
-```yaml
-artifact:
-  name: my-app
-  location: ./dist/app.tar.gz
-  tag: v1.2.3
-  exists: true
-  size: "1048576"
-build:
-  timestamp: "2024-01-15T10:30:45Z"
-  repository: owner/repo-name
-  repository_url: https://github.com/owner/repo-name
-  commit_sha: abc123def456...
-  commit_short_sha: abc123d
-  ref: refs/heads/main
-  workflow_name: Build and Deploy
-  run_id: "123456789"
-  run_number: "42"
-```
-
-### Environment Variables Format
-
-```bash
-ARTIFACT_NAME=my-app
-ARTIFACT_LOCATION=./dist/app.tar.gz
-ARTIFACT_TAG=v1.2.3
-ARTIFACT_EXISTS=true
-ARTIFACT_SIZE=1048576
-BUILD_TIMESTAMP=2024-01-15T10:30:45Z
-BUILD_REPOSITORY=owner/repo-name
-BUILD_REPOSITORY_URL=https://github.com/owner/repo-name
-BUILD_COMMIT_SHA=abc123def456...
-BUILD_COMMIT_SHORT_SHA=abc123d
-BUILD_REF=refs/heads/main
-BUILD_WORKFLOW_NAME=Build and Deploy
-BUILD_RUN_ID=123456789
-BUILD_RUN_NUMBER=42
-```
-
-## Common Use Cases
-
-### 1. Docker Image Information
+### Docker image tracking
 
 ```yaml
 - name: Build Docker image
-  run: docker build -t myapp:${{ github.sha }} .
+  run: |
+    docker build -t myapp:${{ github.sha }} .
+    docker save myapp:${{ github.sha }} -o myapp.tar
 
-- name: Capture Docker image info
+- name: Track Docker artifact
   uses: codewdhruv/capture-artifacts@v1
   with:
     artifact-name: 'myapp-docker'
-    artifact-location: 'myapp:${{ github.sha }}'
+    artifact-location: './myapp.tar'
     artifact-tag: '${{ github.sha }}'
 ```
 
-### 2. Multi-Platform Builds
+### Multi-platform builds
 
 ```yaml
 strategy:
   matrix:
-    platform: [linux, windows, macos]
+    platform: [linux-amd64, linux-arm64, windows-amd64]
 
 steps:
   - name: Build for ${{ matrix.platform }}
     run: ./build.sh ${{ matrix.platform }}
     
-  - name: Capture artifact info
+  - name: Track platform artifact
     uses: codewdhruv/capture-artifacts@v1
     with:
       artifact-name: 'myapp-${{ matrix.platform }}'
@@ -162,40 +98,109 @@ steps:
       artifact-tag: 'v1.0.0-${{ matrix.platform }}'
 ```
 
-### 3. Integration with Artifact Upload
+## Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `artifact-name` | Name of the artifact | ✅ Yes | - |
+| `artifact-location` | Path to artifact (file/directory) | ✅ Yes | - |
+| `artifact-tag` | Version tag for the artifact | ❌ No | `latest` |
+| `output-format` | Output format (`json`/`yaml`/`env`) | ❌ No | `json` |
+| `output-file` | Output filename (no extension) | ❌ No | `artifact-info` |
+
+## Outputs
+
+| Output | Description |
+|--------|-------------|
+| `artifact-info` | Complete artifact information in JSON |
+| `output-file-path` | Path to the generated metadata file |
+
+## Output Structure
+
+<details>
+<summary>📋 JSON Format Example</summary>
+
+```json
+{
+  "artifact": {
+    "name": "web-app",
+    "location": "./dist.tar.gz",
+    "tag": "v1.2.3",
+    "exists": true,
+    "size": "2048576"
+  },
+  "build": {
+    "timestamp": "2024-01-15T10:30:45Z",
+    "repository": "owner/repo",
+    "repository_url": "https://github.com/owner/repo",
+    "commit_sha": "abc123def456...",
+    "commit_short_sha": "abc123d",
+    "ref": "refs/heads/main",
+    "workflow_name": "CI/CD",
+    "run_id": "123456789",
+    "run_number": "42"
+  }
+}
+```
+</details>
+
+## Advanced Use Cases
+
+### Integration with deployment
 
 ```yaml
 - name: Capture artifact info
   id: capture
   uses: codewdhruv/capture-artifacts@v1
   with:
-    artifact-name: 'build-output'
-    artifact-location: './dist'
-    artifact-tag: 'build-${{ github.run_number }}'
+    artifact-name: 'production-build'
+    artifact-location: './build'
+    artifact-tag: 'release-${{ github.ref_name }}'
 
-- name: Upload artifacts with metadata
-  uses: actions/upload-artifact@v4
-  with:
-    name: ${{ fromJson(steps.capture.outputs.artifact-info).artifact.name }}
-    path: |
-      ${{ fromJson(steps.capture.outputs.artifact-info).artifact.location }}
-      ${{ steps.capture.outputs.output-file-path }}
+- name: Deploy to production
+  env:
+    ARTIFACT_NAME: ${{ fromJson(steps.capture.outputs.artifact-info).artifact.name }}
+    BUILD_SHA: ${{ fromJson(steps.capture.outputs.artifact-info).build.commit_short_sha }}
+  run: |
+    echo "Deploying $ARTIFACT_NAME built from $BUILD_SHA"
+    # Your deployment logic here
 ```
 
-## Requirements
+### Compliance documentation
 
-- GitHub Actions runner with bash support
-- `jq` (pre-installed on GitHub-hosted runners)
-- `stat` command (available on most Unix systems)
+```yaml
+- name: Generate compliance report
+  uses: codewdhruv/capture-artifacts@v1
+  with:
+    artifact-name: 'compliance-build'
+    artifact-location: './release'
+    artifact-tag: 'audit-${{ github.run_number }}'
+    output-format: 'yaml'
+    output-file: 'compliance-report'
 
-## Contributing
+- name: Archive compliance data
+  uses: actions/upload-artifact@v4
+  with:
+    name: compliance-documentation
+    path: compliance-report.yaml
+    retention-days: 365
+```
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+## 🤝 Contributing
 
-## License
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) and feel free to submit issues or pull requests.
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Support
+
+If you find this action helpful, please:
+- ⭐ Star this repository
+- 🐛 Report issues on [GitHub Issues](https://github.com/codewdhruv/capture-artifacts/issues)
+- 💬 Join discussions in [GitHub Discussions](https://github.com/codewdhruv/capture-artifacts/discussions)
+
+---
+
+**Made with ❤️ for the GitHub Actions community**
