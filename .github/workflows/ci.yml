@@ -1,0 +1,67 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test Action
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create test artifact
+        run: |
+          mkdir -p test-artifacts
+          echo "Test content $(date)" > test-artifacts/test-file.txt
+          tar -czf test-artifact.tar.gz test-artifacts/
+
+      - name: Test the action
+        id: test
+        uses: ./  # This tests the local action
+        with:
+          artifact-name: 'test-artifact'
+          artifact-location: './test-artifact.tar.gz'
+          artifact-tag: 'test-v1.0.0'
+          output-format: 'json'
+
+      - name: Verify outputs
+        run: |
+          echo "✅ Testing completed successfully!"
+          echo "Generated file: ${{ steps.test.outputs.output-file-path }}"
+          echo "Artifact info:"
+          cat artifact-info.json | jq '.'
+
+      # Test different formats
+      - name: Test YAML output
+        uses: ./
+        with:
+          artifact-name: 'test-yaml'
+          artifact-location: './test-artifact.tar.gz'
+          artifact-tag: 'test-yaml-v1.0.0'
+          output-format: 'yaml'
+          output-file: 'test-yaml'
+
+      - name: Test ENV output
+        uses: ./
+        with:
+          artifact-name: 'test-env'
+          artifact-location: './test-artifact.tar.gz'
+          artifact-tag: 'test-env-v1.0.0'
+          output-format: 'env'
+          output-file: 'test-env'
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-outputs
+          path: |
+            artifact-info.json
+            test-yaml.yaml
+            test-env.env
